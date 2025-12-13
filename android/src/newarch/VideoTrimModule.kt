@@ -16,6 +16,9 @@ class VideoTrimModule(
   ) { eventName, params -> sendEvent(eventName, params) }
 
   private fun sendEvent(eventName: String, params: WritableMap?) {
+    // In New Architecture, event emitters must be called from the React Native thread
+    // to avoid segmentation faults when called from UI thread callbacks
+    reactApplicationContext.runOnNativeModulesQueueThread {
       when (eventName) {
         "onHide" -> emitOnHide()
         "onShow" -> emitOnShow()
@@ -32,6 +35,7 @@ class VideoTrimModule(
           Log.d(NAME, "Unknown event: $eventName")
         }
       }
+    }
   }
 
   override fun showEditor(
