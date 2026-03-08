@@ -139,8 +139,8 @@ export default function App() {
               //   type: 'audio',
               // outputExt: 'wav',
               // closeWhenFinish: false,
-              // minDuration: 50,
-              maxDuration: 15,
+              // minDuration: 50000,
+              maxDuration: 15000,
               fullScreenModalIOS: true,
               saveToPhoto: true,
               removeAfterSavedToPhoto: true,
@@ -316,7 +316,7 @@ export default function App() {
               );
 
               showEditor(result.assets![0]?.uri || '', {
-                maxDuration: 30,
+                maxDuration: 30000,
                 cancelButtonText: 'hello',
                 saveButtonText: 'world',
               });

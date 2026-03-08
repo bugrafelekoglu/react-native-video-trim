@@ -486,11 +486,11 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
 
   private void configure(ReadableMap config) {
     if (config.hasKey("maxDuration") && config.getDouble("maxDuration") > 0) {
-      mMaxDuration = (long) Math.max(0, config.getDouble("maxDuration") * 1000L);
+      mMaxDuration = (long) Math.max(0, config.getDouble("maxDuration"));
     }
 
     if (config.hasKey("minDuration") && config.getDouble("minDuration") > 0) {
-      mMinDuration = (long) Math.max(1000L, config.getDouble("minDuration") * 1000L);
+      mMinDuration = (long) Math.max(1000L, config.getDouble("minDuration"));
     }
 
     cancelBtn.setText(config.getString("cancelButtonText"));

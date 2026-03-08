@@ -332,7 +332,7 @@ class VideoTrimmerViewController: UIViewController {
         trimmer.zoomOnWaitingDuration = zoomOnWaitingDuration
         
         if let maxDuration = maximumDuration {
-            trimmer.maximumDuration = CMTime(seconds: max(1, Double(maxDuration)), preferredTimescale: 600)
+            trimmer.maximumDuration = CMTime(seconds: max(1, Double(maxDuration) / 1000.0), preferredTimescale: 600)
             if trimmer.maximumDuration > asset!.duration {
                 trimmer.maximumDuration = asset!.duration
             }
@@ -340,7 +340,7 @@ class VideoTrimmerViewController: UIViewController {
         }
         
         if let minDuration = minimumDuration {
-            trimmer.minimumDuration = CMTime(seconds: max(1, Double(minDuration)), preferredTimescale: 600)
+            trimmer.minimumDuration = CMTime(seconds: max(1, Double(minDuration) / 1000.0), preferredTimescale: 600)
         }
         
         trimmer.addTarget(self, action: #selector(didBeginScrubbing(_:)), for: VideoTrimmer.didBeginScrubbing)

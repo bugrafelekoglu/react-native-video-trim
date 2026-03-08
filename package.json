@@ -1,6 +1,6 @@
 {
   "name": "react-native-video-trim",
-  "version": "6.0.13",
+  "version": "6.1.0",
   "description": "Video trimmer for your React Native app",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -91,7 +91,7 @@
   "workspaces": [
     "example"
   ],
-  "packageManager": "yarn@1.2.2",
+  "packageManager": "yarn@3.6.1",
   "jest": {
     "preset": "react-native",
     "modulePathIgnorePatterns": [
