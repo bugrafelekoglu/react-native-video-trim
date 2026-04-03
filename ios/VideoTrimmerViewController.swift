@@ -48,6 +48,9 @@ class VideoTrimmerViewController: UIViewController {
     var saveBtnClicked: ((CMTimeRange) -> Void)?
     private var enableHapticFeedback = true
     private var zoomOnWaitingDuration: Double = 5.0 // Default: 5 seconds
+    private var enableDragStrip = true
+    private var dragStripView: UIView!
+    private var dragStripCenterXConstraint: NSLayoutConstraint!
     
     // New color properties
     private var trimmerColor: UIColor = UIColor.systemYellow
@@ -148,6 +151,7 @@ class VideoTrimmerViewController: UIViewController {
         leadingTrimLabel.text = trimmer.selectedRange.start.displayString
         currentTimeLabel.text = trimmer.progress.displayString
         trailingTrimLabel.text = trimmer.selectedRange.end.displayString
+        updateDragStripPosition()
     }
     
     private func handleBeforeProgressChange() {
@@ -174,6 +178,7 @@ class VideoTrimmerViewController: UIViewController {
         setupView()
         setupButtons()
         setupTimeLabels()
+        setupDragStrip()
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -360,7 +365,7 @@ class VideoTrimmerViewController: UIViewController {
         NSLayoutConstraint.activate([
             trimmer.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             trimmer.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            trimmer.bottomAnchor.constraint(equalTo: timingStackView.topAnchor, constant: -16),
+            trimmer.bottomAnchor.constraint(equalTo: dragStripView.topAnchor, constant: -4),
             trimmer.heightAnchor.constraint(equalToConstant: 50)
         ])
         
@@ -466,6 +471,94 @@ class VideoTrimmerViewController: UIViewController {
         }
     }
     
+    private func setupDragStrip() {
+        dragStripView = UIView()
+        dragStripView.translatesAutoresizingMaskIntoConstraints = false
+        dragStripView.backgroundColor = UIColor(white: 1, alpha: 0.08)
+        dragStripView.layer.cornerRadius = 6
+
+        // Three vertical bars icon (|||)
+        let barsContainer = UIView()
+        barsContainer.translatesAutoresizingMaskIntoConstraints = false
+        dragStripView.addSubview(barsContainer)
+        NSLayoutConstraint.activate([
+            barsContainer.centerXAnchor.constraint(equalTo: dragStripView.centerXAnchor),
+            barsContainer.centerYAnchor.constraint(equalTo: dragStripView.centerYAnchor),
+            barsContainer.widthAnchor.constraint(equalToConstant: 22),
+            barsContainer.heightAnchor.constraint(equalToConstant: 16),
+        ])
+        for i in 0..<3 {
+            let bar = UIView()
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            bar.backgroundColor = UIColor(white: 1, alpha: 0.5)
+            bar.layer.cornerRadius = 1
+            barsContainer.addSubview(bar)
+            NSLayoutConstraint.activate([
+                bar.widthAnchor.constraint(equalToConstant: 2),
+                bar.heightAnchor.constraint(equalToConstant: 16),
+                bar.topAnchor.constraint(equalTo: barsContainer.topAnchor),
+                bar.leadingAnchor.constraint(equalTo: barsContainer.leadingAnchor, constant: CGFloat(i) * 10),
+            ])
+        }
+
+        view.addSubview(dragStripView)
+        dragStripCenterXConstraint = dragStripView.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        NSLayoutConstraint.activate([
+            dragStripView.widthAnchor.constraint(equalToConstant: 60),
+            dragStripView.heightAnchor.constraint(equalToConstant: 28),
+            dragStripView.bottomAnchor.constraint(equalTo: timingStackView.topAnchor, constant: -4),
+            dragStripCenterXConstraint,
+        ])
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(dragStripPanned(_:)))
+        dragStripView.addGestureRecognizer(pan)
+        dragStripView.isHidden = !enableDragStrip
+    }
+
+    private func updateDragStripPosition() {
+        guard enableDragStrip, let _ = asset, let trimmer = trimmer,
+              trimmer.bounds.width > 0 else { return }
+        let totalDuration = asset!.duration.seconds
+        guard totalDuration > 0 else { return }
+        let midSeconds = (trimmer.selectedRange.start.seconds + trimmer.selectedRange.end.seconds) / 2.0
+        let fraction = midSeconds / totalDuration
+        let availableWidth = trimmer.bounds.width - trimmer.horizontalInset * 2
+        let midOffsetInTrimmer = trimmer.horizontalInset + availableWidth * CGFloat(fraction)
+        let midX = trimmer.frame.minX + midOffsetInTrimmer
+        dragStripCenterXConstraint.constant = midX - view.bounds.width / 2
+    }
+
+    @objc private func dragStripPanned(_ gesture: UIPanGestureRecognizer) {
+        guard let asset = asset, let trimmer = trimmer else { return }
+        let translation = gesture.translation(in: dragStripView)
+        gesture.setTranslation(.zero, in: dragStripView)
+
+        switch gesture.state {
+        case .began:
+            player.pause()
+            setPlayBtnIcon()
+            if enableHapticFeedback {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        case .changed:
+            let availableWidth = trimmer.bounds.width - trimmer.horizontalInset * 2
+            guard availableWidth > 0 else { return }
+            let totalSeconds = asset.duration.seconds
+            let timeDeltaSeconds = Double(translation.x) / Double(availableWidth) * totalSeconds
+            let timeDelta = CMTime(seconds: timeDeltaSeconds, preferredTimescale: 600)
+            let clipDuration = trimmer.selectedRange.duration
+            var newStart = CMTimeAdd(trimmer.selectedRange.start, timeDelta)
+            newStart = CMTimeMaximum(newStart, .zero)
+            let maxStart = CMTimeSubtract(asset.duration, clipDuration)
+            newStart = CMTimeMinimum(newStart, CMTimeMaximum(maxStart, .zero))
+            trimmer.selectedRange = CMTimeRange(start: newStart, duration: clipDuration)
+            updateLabels()
+            seek(to: newStart)
+        default:
+            break
+        }
+    }
+
   public func configure(config: NSDictionary) {
     if let maxDuration = config["maxDuration"] as? Int, maxDuration > 0 {
       maximumDuration = maxDuration
@@ -480,6 +573,7 @@ class VideoTrimmerViewController: UIViewController {
     jumpToPositionOnLoad = config["jumpToPositionOnLoad"] as? Double ?? 0
     enableHapticFeedback = config["enableHapticFeedback"] as? Bool ?? true
     zoomOnWaitingDuration = (config["zoomOnWaitingDuration"] as? Double ?? 5.0) / 1000.0 // convert ms to s
+    enableDragStrip = config["enableDragStrip"] as? Bool ?? true
     autoplay = config["autoplay"] as? Bool ?? false
     headerText = config["headerText"] as? String
     headerTextSize = config["headerTextSize"] as? Int ?? 16

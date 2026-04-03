@@ -167,10 +167,20 @@
     </RelativeLayout>
 
     <FrameLayout
+      android:id="@+id/dragStrip"
+      android:layout_width="60dp"
+      android:layout_height="28dp"
+      android:layout_below="@+id/trimmerView"
+      android:layout_centerHorizontal="true"
+      android:background="@android:color/transparent"
+      android:clickable="true"
+      android:focusable="true" />
+
+    <FrameLayout
       android:id="@+id/timingStackView"
       android:layout_width="match_parent"
       android:layout_height="50dp"
-      android:layout_below="@+id/trimmerView"
+      android:layout_below="@+id/dragStrip"
       android:layout_marginHorizontal="16dp"
       android:orientation="horizontal"
       android:visibility="visible">
