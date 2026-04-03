@@ -181,6 +181,11 @@ class VideoTrimmerViewController: UIViewController {
         setupDragStrip()
     }
     
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateDragStripPosition()
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         
@@ -522,8 +527,11 @@ class VideoTrimmerViewController: UIViewController {
         guard totalDuration > 0 else { return }
         let midSeconds = (trimmer.selectedRange.start.seconds + trimmer.selectedRange.end.seconds) / 2.0
         let fraction = midSeconds / totalDuration
-        let availableWidth = trimmer.bounds.width - trimmer.horizontalInset * 2
-        let midOffsetInTrimmer = trimmer.horizontalInset + availableWidth * CGFloat(fraction)
+        // Mirror VideoTrimmer's locationForTime: totalInset = chevronWidth(16) + horizontalInset(16)
+        let chevronWidth: CGFloat = 16
+        let totalInset = trimmer.horizontalInset + chevronWidth
+        let availableWidth = trimmer.bounds.width - totalInset * 2
+        let midOffsetInTrimmer = totalInset + availableWidth * CGFloat(fraction)
         let midX = trimmer.frame.minX + midOffsetInTrimmer
         dragStripCenterXConstraint.constant = midX - view.bounds.width / 2
     }
@@ -541,7 +549,8 @@ class VideoTrimmerViewController: UIViewController {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
         case .changed:
-            let availableWidth = trimmer.bounds.width - trimmer.horizontalInset * 2
+            let chevronWidth: CGFloat = 16
+            let availableWidth = trimmer.bounds.width - (trimmer.horizontalInset + chevronWidth) * 2
             guard availableWidth > 0 else { return }
             let totalSeconds = asset.duration.seconds
             let timeDeltaSeconds = Double(translation.x) / Double(availableWidth) * totalSeconds
