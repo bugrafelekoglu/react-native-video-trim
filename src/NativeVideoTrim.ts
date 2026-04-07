@@ -118,6 +118,12 @@ export interface EditorConfig extends BaseOptions {
    * this duration around the current trim position for more precise editing.
    */
   zoomOnWaitingDuration?: number;
+  /**
+   * Whether to show the drag strip handle below the trimmer bar (default: `true`).
+   * The drag strip lets users pan the entire trim window left/right while keeping
+   * the clip duration fixed.
+   */
+  enableDragStrip?: boolean;
 }
 
 /**

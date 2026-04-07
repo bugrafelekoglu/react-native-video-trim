@@ -130,6 +130,9 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
   private View currentSelectedhandle;
 
   private RelativeLayout trimmerView;
+  private FrameLayout dragStrip;
+  private float dragStripLastX = 0;
+  private boolean showDragStrip = true;
 
   private int trimmerColor = Color.parseColor(getContext().getString(R.string.trim_color)); // Default color if not set
   private int handleIconColor = Color.BLACK; // Default chevron color
@@ -187,6 +190,7 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
     headerText = findViewById(R.id.headerText);
 
     trimmerView = findViewById(R.id.trimmerView);
+    dragStrip = (FrameLayout) findViewById(R.id.dragStrip);
 
     leadingChevron = findViewById(R.id.leadingChevron);
     trailingChevron = findViewById(R.id.trailingChevron);
@@ -326,6 +330,12 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
 
     mOnTrimVideoListener.onLoad(mDuration);
     ignoreSystemGestureForView(trimmerView);
+    if (showDragStrip) {
+      ignoreSystemGestureForView(dragStrip);
+      setupDragStripVisual();
+    } else {
+      dragStrip.setVisibility(View.GONE);
+    }
   }
 
   private void updateGradientColors(int startColor, int endColor) {
@@ -353,6 +363,7 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
 
     updateTrimmerContainerWidth();
     updateCurrentTime(false);
+    updateDragStripPosition();
 
     trimmerContainerWrapper.setVisibility(View.VISIBLE);
     trimmerContainerWrapper.animate().alpha(1f).setDuration(250).start();
@@ -396,6 +407,7 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
     mPlayView.setOnClickListener(view -> playOrPause());
     setHandleTouchListener(leadingHandle, true);
     setHandleTouchListener(trailingHandle, false);
+    if (showDragStrip) setDragStripTouchListener();
   }
 
   public void onSaveClicked() {
@@ -532,6 +544,8 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
       Log.d(TAG, "Configured zoom on waiting duration: " + (zoomOnWaitingDuration / 1000.0) + " seconds");
     }
 
+    showDragStrip = !config.hasKey("enableDragStrip") || config.getBoolean("enableDragStrip");
+
     trimmerColor = config.hasKey("trimmerColor") ? config.getInt("trimmerColor") : Color.parseColor(getContext().getString(R.string.trim_color));
     handleIconColor = config.hasKey("handleIconColor") ? config.getInt("handleIconColor") : Color.BLACK;
 
@@ -660,6 +674,81 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
     int seconds = totalSeconds % 60;
     int millis = milliseconds % 1000;
     return String.format(Locale.getDefault(), "%d:%02d.%03d", minutes, seconds, millis);
+  }
+
+  private void updateDragStripPosition() {
+    if (!showDragStrip || dragStrip == null || leadingHandle == null || trailingHandle == null) return;
+    // Use handle positions directly — they're already in trimmerView's coordinate space
+    float selectionLeft = leadingHandle.getX() + leadingHandle.getWidth();
+    float selectionRight = trailingHandle.getX();
+    float midX = trimmerView.getX() + (selectionLeft + selectionRight) / 2f;
+    dragStrip.setX(midX - dragStrip.getWidth() / 2f);
+  }
+
+  private void setupDragStripVisual() {
+    GradientDrawable bg = new GradientDrawable();
+    bg.setShape(GradientDrawable.RECTANGLE);
+    bg.setColor(0x14FFFFFF); // 8% white
+    bg.setCornerRadius(dpToPx(6));
+    dragStrip.setBackground(bg);
+
+    // Three vertical bars (|||) centered inside the drag strip
+    android.widget.LinearLayout bars = new android.widget.LinearLayout(getContext());
+    bars.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+    bars.setGravity(android.view.Gravity.CENTER);
+    FrameLayout.LayoutParams barsParams = new FrameLayout.LayoutParams(
+      android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+      android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+    );
+    barsParams.gravity = android.view.Gravity.CENTER;
+    for (int i = 0; i < 3; i++) {
+      android.view.View bar = new android.view.View(getContext());
+      GradientDrawable barBg = new GradientDrawable();
+      barBg.setShape(GradientDrawable.RECTANGLE);
+      barBg.setColor(0x80FFFFFF); // 50% white
+      barBg.setCornerRadius(dpToPx(1));
+      bar.setBackground(barBg);
+      android.widget.LinearLayout.LayoutParams barParams = new android.widget.LinearLayout.LayoutParams(dpToPx(2), dpToPx(16));
+      barParams.setMargins(dpToPx(3), 0, dpToPx(3), 0);
+      bars.addView(bar, barParams);
+    }
+    dragStrip.addView(bars, barsParams);
+  }
+
+  private void setDragStripTouchListener() {
+    dragStrip.setOnTouchListener((view, event) -> {
+      switch (event.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStripLastX = event.getRawX();
+          onMediaPause();
+          playHapticFeedback(true);
+          break;
+        case MotionEvent.ACTION_MOVE: {
+          float delta = event.getRawX() - dragStripLastX;
+          dragStripLastX = event.getRawX();
+          if (trimmerContainerBg.getWidth() <= 0 || mDuration <= 0) break;
+          long clipDuration = endTime - startTime;
+          long timeDelta = (long) ((delta / (float) trimmerContainerBg.getWidth()) * mDuration);
+          long newStart = startTime + timeDelta;
+          newStart = Math.max(0, Math.min(newStart, mDuration - clipDuration));
+          startTime = newStart;
+          endTime = newStart + clipDuration;
+          updateHandlePositions();
+          seekTo(startTime, true);
+          break;
+        }
+        case MotionEvent.ACTION_UP:
+          view.performClick();
+          break;
+        default:
+          return false;
+      }
+      return true;
+    });
+  }
+
+  public void setShowDragStrip(boolean show) {
+    this.showDragStrip = show;
   }
 
   private void setProgressIndicatorTouchListener() {
@@ -877,6 +966,7 @@ public class VideoTrimmerView extends FrameLayout implements IVideoTrimmerView {
           didClampWhilePanning = didClamp;
 
           updateTrimmerContainerWidth();
+          updateDragStripPosition();
           seekTo(isLeading ? startTime : endTime, false);
 
           // Start zoom wait timer when dragging handles
